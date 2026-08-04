@@ -6,10 +6,10 @@ function step_sim(exchange, traders::Vector{StructArray{<:Trader}}, rng::Abstrac
     step_demand!(traders)
     orders = get_orders(traders)
     shuffle!(rng, orders)
-    result_orders = send_orders(exchange, orders)
+    result_orders = send_orders!(exchange, orders)
     reconcile_portfolios!(exchange, traders, result_orders)
     
-    return orders
+    return exchange.market_price
 end
 
 function step_demand!(ts::StructArray{<:Trader})
@@ -176,6 +176,7 @@ function process_order(e::Exchange, order::MarketOrder)
         
         push!(return_orders, ResultOrder(order.trader_id, units_traded, best_ask.price))
         push!(return_orders, ResultOrder(best_ask.trader_id, -units_traded, best_ask.price))
+        exchange.market_price = best_ask.price
         
     else # order.side = Ask
 
@@ -210,6 +211,7 @@ function process_order(e::Exchange, order::MarketOrder)
         
         push!(return_orders, ResultOrder(order.trader_id, -units_traded, best_bid.price))
         push!(return_orders, ResultOrder(best_bid.trader_id, units_traded, best_bid.price))
+        exchange.market_price = best_bid.price
     
     end
 
