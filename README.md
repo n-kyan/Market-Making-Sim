@@ -118,6 +118,14 @@ A critical design decision is the order in which orders are processed. If the ma
 
 **Hot Swap Configs:** As initial configuration possibilities of the market grows, it will be valuable to make a system to easily swap in different setups without having to rewrite everything by hand every time.
 
+**Time Based Sim Config with num_trader:sim_steps Ratio:** Rather than defining how many traders you want and how many sim steps you want, define the ratio between num_traders and sim_steps and how long of a simulation you want to run. For example, you can say you want a 10 second simulation and it will run as many sim_steps as it can in the 10 seconds.
+
+## Implementation
+
+I will use Float64 for all decimal numbers.
+
+
+
 # Other Market Concepts
 
 ## Bid-Ask Bounce and Volatiltiy Overestimation (AI - redo)
