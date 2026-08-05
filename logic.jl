@@ -1,10 +1,12 @@
 using StructArrays
 using Random
 
-function step_sim(exchange, traders::Vector{StructArray{<:Trader}}, rng::AbstractRNG)
-    
-    step_demand!(traders)
-    orders = get_orders(traders)
+function step_sim(exchange::Exchange, traders::Vector{StructArray{<:Trader}}, rng::AbstractRNG)
+
+    for trader_group in traders:
+        step_demand!(trader_group)
+    end
+    orders = get_orders(traders, exchange)
     shuffle!(rng, orders)
     result_orders = send_orders!(exchange, orders)
     reconcile_portfolios!(exchange, traders, result_orders)
@@ -22,30 +24,16 @@ function step_demand!(ts::StructArray{<:Trader})
 
         # Algorithm to randomly walk the demmand based on up.
         # Bounded to [0.0, 1.0] so demand can never be negative or greater than 1 since it is a proportion of wealth.
-        if ts.demand[i] == 1.0
-            if up
-                new_demand = 1.0
-            else
-                new_demand = 1.0 - step_size
-            end
-        elseif ts.demand[i] == 0.0
-            if up
-                new_demand = 0.0 + step_size
-            else
-                new_demand = 0.0
-            end
-        else
-            if up
-                new_demand = ts.demand[i] + step_size
-            else
-                new_demand = ts.demand[i] - step_size
-            end
+
+        if up
+            new_demand = ts.demand[i] + step_size
+        else # down
+            new_demand = ts.demand[i] - step_size
         end
-    
+
         if new_demand >= 1.0 || new_demand <= 0
             new_demand = clamp(new_demand, 0.0, 1.0)
         end
-
         ts.demand[i] = new_demand
     end
 end
@@ -57,96 +45,120 @@ function step_demand!(ts::StructArray{<:Trader{NaiveMarketMake}})
 end
 
 function calc_net_units(p::Portfolio)
+    net_units = 0.0
     for position in p.positions
         net_units += position.units
     end
+    return net_units
 end
 
-function execute_strategy(StructArray{<:Trader{NaiveRebalance}}, e::Exchange)
+function execute_strategy(tg::StructArray{<:Trader{NaiveRebalance}}, e::Exchange)
 
     mp = e.market_price
-    
-    asset_order_amt = 0.0
-    desired_asset_amt = (ts.wealth[i] * ts.demand[i]) / mp
-    current_asset_amt = calc_net_units(ts.portfolio[i])
+    orders = Vector{MarketOrder}
 
-    if current_asset_amt[i] != desired_asset_amt[i]
-        asset_order_amt[i] = desired_asset_amt[i] - ts.asset[i]
+    for i in eachindex(tg)
+    
+        desired_asset_amt = (tg.wealth[i] * tg.demand[i]) / mp
+        current_asset_amt = calc_net_units(tg.portfolio[i])
+    
+        if current_asset_amt != desired_asset_amt[i]
+            asset_order_amt = desired_asset_amt - current_asset_amt
+        else
+            asset_order_amt = 0.0
+        end
+        
+        push!(orders, MarketOrder(tg.trader_id[i], asset_order_amt, asset_order_amt > 0 ? Bid : Ask))
+        
+        # temporary print code to see how orders evolves over time
+        println("Trader ID: $(tg.trader_id[i])")
+        println("Portfolio: $(tg.portfolio[i])")
+        println("Asset: $(ts.asset[i])")
+        
+        println("Asset Demand: $(tg.demand[i])")
+        println("Asset Order: $asset_order_amt")
+        println()
+        
+        
+        
     end
-    orders = Vector{MarketOrder}(t.trader_id[i], asset_order_amt[i], asset_order_amt[i] > 0 ? Bid : Ask)
+    return orders
 end
 
-function execute_strategy(ts::StructArray{<:Trader{NaiveMarketMake}}, e::Exchange)
+function execute_strategy(tg::StructArray{<:Trader{NaiveMarketMake}}, e::Exchange)
 
     orders = Vector{LimitOrder}()
+    half_spread = e.market_price * 1.1
 
-    units = 0.1 * ts.portfolio.cash[i]
-
-    append!(orders, [LimitOrder(trader_id[i], units[i], Ask) for i in eachindex(ts)])
-    append!(orders, [LimitOrder(trader_id[i], units[i], Bid) for i in eachindex(ts)])
-
+    for i in eachindex(tg)
+        units = 0.1 * ts.portfolio.cash[i]
+    
+        push!(orders, LimitOrder(tg.trader_id[i], units, e.market_price + half_spread, Ask))
+        push!(orders, LimitOrder(tg.trader_id[i], units, e.market_price - half_spread, Bid))
+    end
     return orders
 end
 
 function get_orders(ts::Vector{StructArray{<:Trader}}, e::Exchange)
 
-    orders = Vector{Order}()
+    orders = Vector{AbstractOrderOrder}()
 
     for trader_group in ts
-
     
-        orders = execute_strategy(trader_group)
-            
-        
-        # temporary print code to see how orders evolves over time
-        println("Trader ID: $(ts.id[i])")
-        println("Cash: $(ts.cash[i])")
-        println("Asset: $(ts.asset[i])")
-        
-        println("Asset Demand: $(ts.demand[i])")
-        println("Asset Order: $asset_order_amt")
-        println()
-
-        append!(orders, Order(ts.id[i], asset_order_amt))
+        append!(orders, execute_strategy(trader_group, e))
         
     end
     return orders
 end
 
 
-function make_traders(num_traders::Int, strategy::NaiveRebalance)
+function make_trader(id::Int, strategy::NaiveRebalance)
     
     wealth = 100.0
     asset = 0.0
     cash = wealth - asset
     demand = 0.5
 
-    traders = [Trader(i, wealth, asset, cash, demand, strategy) for i in 1:num_traders]
+    trader = Trader(id, wealth, asset, cash, demand, strategy)
     
-    return StructArray(traders)
+    return trader
 end
 
-function make_traders(num_traders::Int, strategy::NaiveMarketMake)
+function make_trader(id::Int, strategy::NaiveMarketMake)
     
     wealth = 100.0
     asset = 0.0
     cash = wealth - asset
     demand = 0.0
 
-    traders = [Trader(i, wealth, asset, cash, demand, strategy) for i in 1:num_traders]
+    trader = Trader(id, wealth, asset, cash, demand, strategy)
     
-    return StructArray(traders)
+    return trader
+end
+
+function make_traders(tuples::Vector{Tuple{Int, <:AbstractStrategy}})
+    traders = Vector{StructArray{<:Trader}}()
+    temp = Vector{<:Trader}
+    id = 1
+    for (count, strategy)) in tuples
+        for i in 1:count
+            push!(temp, make_trader(id, strategy))
+            id += 1
+        end
+        push!(traders, temp)
+    end
+    return traders
 end
 
 # Currently the trader can only make market orders
-function process_order(e::Exchange, order::MarketOrder)
+function process_order!(e::Exchange, order::MarketOrder)
 
-    return_orders = Vector{Order}()
+    result_orders = Vector{ResultOrder}()
 
     if order.side == Bid
         
         if isempty(e.asks)
-            return return_orders
+            return result_orders
         end
 
         best_ask = dequeue!(e.asks) # min ask from min heap
@@ -166,7 +178,7 @@ function process_order(e::Exchange, order::MarketOrder)
             # No need to make a limit order for remaining limit order volume since it was fully consumed
             # Rather, need to make a new market order with the remaining demand from the original market order
             remaining_market_order = MarketOrder(order.trader_id, remaining_order_units, Bid)
-            append!(return_orders, process_order(remaining_market_order))
+            append!(result_orders, process_order(remaining_market_order, e))
 
         else # full fill, full consumption
             units_traded = order.units
@@ -174,14 +186,14 @@ function process_order(e::Exchange, order::MarketOrder)
             # No need for further processing
         end 
         
-        push!(return_orders, ResultOrder(order.trader_id, units_traded, best_ask.price))
-        push!(return_orders, ResultOrder(best_ask.trader_id, -units_traded, best_ask.price))
-        exchange.market_price = best_ask.price
+        push!(result_orders, ResultOrder(order.trader_id, units_traded, best_ask.price))
+        push!(result_orders, ResultOrder(best_ask.trader_id, -units_traded, best_ask.price))
+        e.market_price = best_ask.price
         
     else # order.side = Ask
 
         if isempty(e.bids)
-            return return_orders
+            return result_orders
         end
     
         best_bid = dequeue!(e.bids) # max bid from max heap
@@ -200,8 +212,8 @@ function process_order(e::Exchange, order::MarketOrder)
 
             # No need to make a limit order for remaining limit order volume since it was fully consumed
             # Rather, need to make a new market order with the remaining demand from the original market order
-            remaining_market_order = MarketOrder(order.trader_id, remaining_order_units, Bid)
-            append!(return_orders, process_order(remaining_market_order))
+            remaining_market_order = MarketOrder(order.trader_id, remaining_order_units, Ask)
+            append!(result_orders, process_order(remaining_market_order, e))
 
         else # full fill, full consumption
             units_traded = order.units
@@ -209,53 +221,51 @@ function process_order(e::Exchange, order::MarketOrder)
             # No need for further processing
         end
         
-        push!(return_orders, ResultOrder(order.trader_id, -units_traded, best_bid.price))
-        push!(return_orders, ResultOrder(best_bid.trader_id, units_traded, best_bid.price))
-        exchange.market_price = best_bid.price
+        push!(result_orders, ResultOrder(order.trader_id, -units_traded, best_bid.price))
+        push!(result_orders, ResultOrder(best_bid.trader_id, units_traded, best_bid.price))
+        e.market_price = best_bid.price
     
     end
-
-    return return_orders
+    
+    return result_orders
 end
 
 # Currently limit orders are reserved for the trader that represents myself
-function process_order(exchange::Exchange, order::LimitOrder)
-    if order.type == Bid
+function process_order!(e::Exchange, order::LimitOrder)
+    if order.side == Bid
         enqueue!(e.bids, order, order.price)
-    else # oreder.type == Ask
+    else # order.side == Ask
         enqueue!(e.asks, order, order.price)
-
+    end
     # Will eventually need to add support to the case when two limit orders cross
 end
 
 
-function send_orders(exchange::Exchange, orders::Vector{Order})
+function send_orders!(e::Exchange, orders::Vector{<:AbstractOrder})
 
-    result_orderes = Vector{Order}()
+    result_orders = Vector{ResultOrder}()
 
     for order in orders
-        append!(result_orderes, process_order(order))     
+        append!(result_orders, process_order!(e, order))     
     end
 
-    return result_orderes
+    return result_orders
 end
 
 # Will need to be updated when multiple assets are supported
 function calc_wealth(p::Portfolio, market_price::Float64)
-    cash = p.cash
 
     net_units = calc_net_units(p)
 
-    return p.cash + (net_units * market_price)
-    
+    return p.cash + (net_units * market_price)  
 end
 
-function reconcile_portfolios(exchange::Exchange, traders::Trader, result_orders::Vector{ResultOrder})
+function reconcile_portfolios!(exchange::Exchange, traders::Vector{StructArray{<:Trader}}, result_orders::Vector{ResultOrder})
 
     
     for order in result_orders
         t = traders[order.trader_id]
-        push!(t.portfolio, Position(order.units, order.price)
+        push!(t.portfolio.positions, Position(order.units, order.price))
         t.portfolio.cash -= order.units * order.price
         t.wealth = calc_wealth(t.portfolio, exchange.market_price)
     end

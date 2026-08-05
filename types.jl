@@ -16,7 +16,7 @@ struct Portfolio
     # for now positions are never removed from the portfolio but are just canceled out by new posittions.
     # This is just one less thing to implement for me and also could be useful for post sim analysis
     cash::Float64
-    positions::Vector{Position}
+    positions::StructArray{Position}
 end
 
 # The general purpose Trader struct. All market participants will be traders including the market marker who I control.
@@ -45,9 +45,9 @@ struct LimitOrder <: AbstractOrder
     side::Side
 end
 
-struct ResultOrder <: Order
+struct ResultOrder <: AbstractOrder
     trader_id::Int
-    units_change::Float64 # how the trader's position should change
+    units::Float64 # how many units the trader's position should change by
     price::Float64 # price at which the trade occured
 end
 
@@ -57,7 +57,8 @@ struct Exchange
     market_price::Float64
 end
 
-Exchange() = Exchange(
+Exchange(starting_market_price::Float64) = Exchange(
     PriorityQueue{LimitOrder, Float64}(),
-    PriorityQueue{LimitOrder, Float64}(Base.Order.Reverse)
+    PriorityQueue{LimitOrder, Float64}(Base.Order.Reverse),
+    market_price
 )

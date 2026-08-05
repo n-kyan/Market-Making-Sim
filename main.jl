@@ -10,14 +10,14 @@ function main()
     num_sim_steps = 10
     num_npc_traders = 1
     rng = Xoshiro(67)
-    exchange = Exchange()
-    traders = Vector{StructArray{<:Trader}}
+    traders = Vector{StructArray{<:Trader}}()
     # order_log = Vector{Vector{Order}}()
     starting_market_price = 10.0
-    market_price_log = Vector{Float64}(starting_market_price)
+    market_price_log = [starting_market_price]
+    exchange = Exchange(starting_market_price)
     
-    append!(traders, make_traders(num_npc_traders, NaiveRebalance()))
-    append!(traders, make_traders(1, NaiveMarketMake()))
+    push!(traders, make_traders(num_npc_traders, NaiveRebalance()))
+    push!(traders, make_traders(1, NaiveMarketMake()))
 
     
     println("=== Starting Simulation ===")
