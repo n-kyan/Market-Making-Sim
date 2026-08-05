@@ -10,7 +10,6 @@ function main()
     num_sim_steps = 10
     num_npc_traders = 1
     rng = Xoshiro(67)
-    traders = Vector{StructArray{<:Trader}}()
     # order_log = Vector{Vector{Order}}()
     starting_market_price = 10.0
     market_price_log = [starting_market_price]
@@ -22,8 +21,6 @@ function main()
         ]
 
     traders = trader_factory(trader_build_specs)
-
-    println(typeof(traders[1].portfolio))
     
     println("=== Starting Simulation ===")
     for i in 1: num_sim_steps
