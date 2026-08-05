@@ -19,6 +19,7 @@ function main()
     push!(traders, make_traders(num_npc_traders, NaiveRebalance()))
     push!(traders, make_traders(1, NaiveMarketMake()))
 
+    println(typeof(traders[1].portfolio))
     
     println("=== Starting Simulation ===")
     for i in 1: num_sim_steps

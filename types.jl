@@ -51,7 +51,7 @@ struct ResultOrder <: AbstractOrder
     price::Float64 # price at which the trade occured
 end
 
-struct Exchange
+mutable struct Exchange
     asks::PriorityQueue{LimitOrder, Float64}
     bids::PriorityQueue{LimitOrder, Float64}
     market_price::Float64
@@ -60,5 +60,5 @@ end
 Exchange(starting_market_price::Float64) = Exchange(
     PriorityQueue{LimitOrder, Float64}(),
     PriorityQueue{LimitOrder, Float64}(Base.Order.Reverse),
-    market_price
+    starting_market_price
 )

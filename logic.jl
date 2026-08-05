@@ -46,8 +46,8 @@ end
 
 function calc_net_units(p::Portfolio)
     net_units = 0.0
-    for position in p.positions
-        net_units += position.units
+    for i in eachindex(p.positions)
+        net_units += position.units[i]
     end
     return net_units
 end
@@ -260,13 +260,17 @@ function calc_wealth(p::Portfolio, market_price::Float64)
     return p.cash + (net_units * market_price)  
 end
 
-function reconcile_portfolios!(exchange::Exchange, traders::Vector{StructArray{<:Trader}}, result_orders::Vector{ResultOrder})
+function reconcile_portfolios!(e::Exchange, traders::Vector{StructArray{<:Trader}}, result_orders::Vector{ResultOrder})
 
     
     for order in result_orders
-        t = traders[order.trader_id]
-        push!(t.portfolio.positions, Position(order.units, order.price))
-        t.portfolio.cash -= order.units * order.price
-        t.wealth = calc_wealth(t.portfolio, exchange.market_price)
+        for tg in traders
+            i = findfirst(==(order.trader_id), tg.id)
+            if i !== nothing
+                push!(tg.portfolio.positions[i], Position(order.units, order.price))
+                tg.portfolio.cash[i] -= order.units * order.price
+                tg.wealth[i] = calc_wealth(tg.portfolio[i], e.market_price)
+            end
+        end
     end
 end

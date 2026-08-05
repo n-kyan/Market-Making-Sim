@@ -124,6 +124,8 @@ A critical design decision is the order in which orders are processed. If the ma
 
 I will use Float64 for all decimal numbers.
 
+Julia is column major for looping while c++ and python are row major
+
 
 
 # Other Market Concepts
