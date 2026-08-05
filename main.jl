@@ -15,9 +15,13 @@ function main()
     starting_market_price = 10.0
     market_price_log = [starting_market_price]
     exchange = Exchange(starting_market_price)
-    
-    push!(traders, make_traders(num_npc_traders, NaiveRebalance()))
-    push!(traders, make_traders(1, NaiveMarketMake()))
+
+    trader_build_specs = [
+        (1, NaiveMarketMake()),
+        (num_npc_traders, NaiveRebalance())
+        ]
+
+    traders = trader_factory(trader_build_specs)
 
     println(typeof(traders[1].portfolio))
     
