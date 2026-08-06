@@ -2,6 +2,7 @@ using StructArrays
 using Random
 
 function step_sim(exchange::Exchange, traders::Vector{StructArray{<:Trader}}, rng::AbstractRNG)
+    
 
     for trader_group in traders
         step_demand!(trader_group)
@@ -11,7 +12,20 @@ function step_sim(exchange::Exchange, traders::Vector{StructArray{<:Trader}}, rn
     result_orders = send_orders!(exchange, orders)
     update_positions!(exchange, traders, result_orders)
 
-    return exchange.market_price
+    # return exchange.market_price
+    # return traders[1].wealth[1]
+    sample_traders = StructArray([trader_group[1] for trader_group in traders])
+    return MetaData(exchange.market_price, sample_traders)
+    
+end
+
+function analyze_sim_metadata(md::StructArray{MetaData})
+    # Market price over time
+    plot(md.market_price)
+
+    # Trader data over time
+    plot(md.sample_traders.wealth)
+    # plot(md.sample_traders.wealth)
 end
 
 function step_demand!(ts::StructArray{<:Trader})
@@ -63,11 +77,11 @@ function execute_strategy(tg::StructArray{<:Trader{NaiveRebalance}}, e::Exchange
         current_asset_amt = calc_net_units(tg.positions[i])
         asset_order_amt = desired_asset_amt - current_asset_amt
 
-        push!(orders, MarketOrder(tg.id[i], asset_order_amt, asset_order_amt > 0 ? Bid : Ask))
+        push!(orders, MarketOrder(tg.id[i], abs(asset_order_amt), asset_order_amt > 0 ? Bid : Ask))
 
         # temporary print code to see how orders evolves over time
         println("Trader ID: $(tg.id[i])")
-        println("positions: $(tg.positions[i])")
+        println("wealth: $(tg.wealth[i])")
         println("Curr Asset Amt: $current_asset_amt")
 
         println("Asset Demand: $(tg.demand[i])")
@@ -78,14 +92,48 @@ function execute_strategy(tg::StructArray{<:Trader{NaiveRebalance}}, e::Exchange
     return orders
 end
 
+
+function cancel_limits(tg::StructArray{<:Trader{NaiveMarketMake}}, e::Exchange)
+
+    bids_to_remove = Vector{LimitOrder}()
+    asks_to_remove = Vector{LimitOrder}()
+    
+    for (order, price) in e.bids
+        for i in eachindex(tg.id)
+            if order.trader_id == tg.id[i]
+                push!(bids_to_remove, order)
+                break
+            end
+        end
+    end
+
+    for bid in bids_to_remove
+        delete!(e.bids, bid)
+    end
+
+    for (order, price) in e.asks
+        for i in eachindex(tg.id)
+            if order.trader_id == tg.id[i]
+                push!(asks_to_remove, order)
+                break
+            end
+        end
+    end
+
+    for ask in asks_to_remove
+        delete!(e.asks, ask)
+    end
+end
+
 function execute_strategy(tg::StructArray{<:Trader{NaiveMarketMake}}, e::Exchange)
+
+    cancel_limits(tg, e)
 
     orders = Vector{LimitOrder}()
     half_spread = e.market_price * 0.1
 
     for i in eachindex(tg)
         units = 0.1 * tg.cash[i]
-
         push!(orders, LimitOrder(tg.id[i], units, e.market_price + half_spread, Ask))
         push!(orders, LimitOrder(tg.id[i], units, e.market_price - half_spread, Bid))
     end

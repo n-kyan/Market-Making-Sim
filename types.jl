@@ -1,6 +1,14 @@
 using DataStructures
 using StructArrays
 
+# Contains all metadata from a sim step to be returned back to main to be used for analysis
+struct MetaData
+    market_price::Float64
+    sample_traders::StructArray{<:Trader} # one trader from each trader group to be representative of the group. Should probably be changed to be a statistical representation of each group.
+    
+end
+
+
 # Abstract strategy struct that will be the parent of all strategy types.
 abstract type AbstractStrategy end
 struct NaiveRebalance <: AbstractStrategy end
@@ -11,8 +19,6 @@ struct Position
     units::Float64 # number of units acquired
     price::Float64 # per unit price at which the position was acquired
 end
-
-
 
 # The general purpose Trader struct. All market participants will be traders including the market marker who I control.
 struct Trader{S <: AbstractStrategy}
