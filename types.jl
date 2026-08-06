@@ -1,10 +1,12 @@
 using DataStructures
 using StructArrays
+using Base.Order: ForwardOrdering, ReverseOrdering
 
 # Contains all metadata from a sim step to be returned back to main to be used for analysis
 struct MetaData
+    time_elapsed::Float64
     market_price::Float64
-    sample_traders::StructArray{<:Trader} # one trader from each trader group to be representative of the group. Should probably be changed to be a statistical representation of each group.
+    sample_traders::Vector{Trader} # one trader from each trader group to be representative of the group. Should probably be changed to be a statistical representation of each group.
     
 end
 
@@ -57,8 +59,8 @@ struct ResultOrder <: AbstractOrder
 end
 
 mutable struct Exchange
-    asks::PriorityQueue{LimitOrder, Float64}
-    bids::PriorityQueue{LimitOrder, Float64}
+    asks::PriorityQueue{LimitOrder, Float64, ForwardOrdering}
+    bids::PriorityQueue{LimitOrder, Float64, ReverseOrdering}
     market_price::Float64
 end
 
