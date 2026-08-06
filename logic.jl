@@ -1,9 +1,11 @@
 using StructArrays
 using Random
+using Plots
 
 function step_sim(exchange::Exchange, traders::Vector{StructArray{<:Trader}}, rng::AbstractRNG)
-    
 
+    start = time_ns()
+    
     for trader_group in traders
         step_demand!(trader_group)
     end
@@ -12,20 +14,27 @@ function step_sim(exchange::Exchange, traders::Vector{StructArray{<:Trader}}, rn
     result_orders = send_orders!(exchange, orders)
     update_positions!(exchange, traders, result_orders)
 
-    # return exchange.market_price
-    # return traders[1].wealth[1]
-    sample_traders = StructArray([trader_group[1] for trader_group in traders])
-    return MetaData(exchange.market_price, sample_traders)
+    sample_traders = [deepcopy(trader_group[1]) for trader_group in traders]
+    time_elapsed = (time_ns() - start) /1e6
+    return MetaData(time_elapsed, exchange.market_price, sample_traders)
     
 end
 
 function analyze_sim_metadata(md::StructArray{MetaData})
-    # Market price over time
-    plot(md.market_price)
+    md.time_elapsed[1] = md.time_elapsed[2] # ignore the step with all the compilation
+    p1 = plot(md.time_elapsed, title="Time Elapsed", xlabel="Step", ylabel="Time(ms)")
 
-    # Trader data over time
-    plot(md.sample_traders.wealth)
-    # plot(md.sample_traders.wealth)
+    p2 = plot(md.market_price, title="Market Price", xlabel="Step", ylabel="Price")
+
+    p3 = plot(title="Trader Wealth", xlabel="Step", ylabel="Wealth")
+    num_groups = length(md.sample_traders[1])
+    for g in 1:num_groups
+        wealth_over_time = [md.sample_traders[t][g].wealth for t in eachindex(md)]
+        strategy_name = typeof(md.sample_traders[1][g].strategy)
+        plot!(p3, wealth_over_time, label="$strategy_name")
+    end
+
+    display(plot(p1, p2, p3, layout=(3, 1), size=(800, 900)))
 end
 
 function step_demand!(ts::StructArray{<:Trader})

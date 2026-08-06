@@ -7,7 +7,6 @@ struct MetaData
     time_elapsed::Float64
     market_price::Float64
     sample_traders::Vector{Trader} # one trader from each trader group to be representative of the group. Should probably be changed to be a statistical representation of each group.
-    
 end
 
 
@@ -60,7 +59,7 @@ end
 
 mutable struct Exchange
     asks::PriorityQueue{LimitOrder, Float64, ForwardOrdering}
-    bids::PriorityQueue{LimitOrder, Float64, ReverseOrdering}
+    bids::PriorityQueue{LimitOrder, Float64, ReverseOrdering{ForwardOrdering}}
     market_price::Float64
 end
 
