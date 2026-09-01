@@ -5,19 +5,25 @@ using Plots
 function step_sim(exchange::Exchange, traders::Vector{StructArray{<:Trader}}, rng::AbstractRNG)
 
     start = time_ns()
-    
-    for trader_group in traders
-        step_demand!(trader_group)
-    end
-    orders = get_orders(traders, exchange)
-    shuffle!(rng, orders)
-    result_orders = send_orders!(exchange, orders)
-    update_positions!(exchange, traders, result_orders)
+    # for trader_group in traders
+    #     step_demand!(trader_group)
+    # end
+    # orders = get_orders(traders, exchange)
+    # shuffle!(rng, orders)
+    # result_orders = send_orders!(exchange, orders)
+    # update_positions!(exchange, traders, result_orders)
 
-    sample_traders = [deepcopy(trader_group[1]) for trader_group in traders]
-    time_elapsed = (time_ns() - start) /1e6
-    return MetaData(time_elapsed, exchange.market_price, sample_traders)
+    # sample_traders = [deepcopy(trader_group[1]) for trader_group in traders]
+    # time_elapsed = (time_ns() - start) /1e6
+
+
+    orders = make_decisions!(exchange, traders)
+    shuffle!(rng, orders) # simple solution to make order processing fail
+    trade_reports = handle_orders!(exchange, orders)
+    reconcile_portfolios(traders, trade_reports)
     
+    
+    return MetaData(time_elapsed, exchange.market_price, sample_traders)
 end
 
 function analyze_sim_metadata(md::StructArray{MetaData})
@@ -88,25 +94,29 @@ function execute_strategy(tg::StructArray{<:Trader{NaiveRebalance}}, e::Exchange
 
         push!(orders, MarketOrder(tg.id[i], abs(asset_order_amt), asset_order_amt > 0 ? Bid : Ask))
 
-        # temporary print code to see how orders evolves over time
+        # temporary print code to see how trader evolves over time
         println("Trader ID: $(tg.id[i])")
-        println("wealth: $(tg.wealth[i])")
-        println("Curr Asset Amt: $current_asset_amt")
+        println("Wealth: $(tg.wealth[i])")
+        println("Curr Asset Value: $(current_asset_amt * mp)")
+        println("Cash: $(tg.cash[i])")
+        println("Accounting Error: $(current_asset_amt * mp + tg.cash[i] - tg.wealth[i])")
+
 
         println("Asset Demand: $(tg.demand[i])")
         println("Asset Order: $asset_order_amt")
+        println("Market Price: $(mp)")
         println()
 
     end
     return orders
 end
 
-
+# bandaid fix for mm to cancel limit orders
 function cancel_limits(tg::StructArray{<:Trader{NaiveMarketMake}}, e::Exchange)
 
     bids_to_remove = Vector{LimitOrder}()
     asks_to_remove = Vector{LimitOrder}()
-    
+
     for (order, price) in e.bids
         for i in eachindex(tg.id)
             if order.trader_id == tg.id[i]
@@ -139,7 +149,7 @@ function execute_strategy(tg::StructArray{<:Trader{NaiveMarketMake}}, e::Exchang
     cancel_limits(tg, e)
 
     orders = Vector{LimitOrder}()
-    half_spread = e.market_price * 0.1
+    half_spread = 0.5 # e.market_price * 0.1
 
     for i in eachindex(tg)
         units = 0.1 * tg.cash[i]
@@ -151,11 +161,23 @@ end
 
 function get_orders(ts::Vector{StructArray{<:Trader}}, e::Exchange)
 
-    orders = Vector{AbstractOrder}()
+    orders = Vector{LimitOrder}()
 
     for trader_group in ts
 
         append!(orders, execute_strategy(trader_group, e))
+
+    end
+    return orders
+end
+
+function make_decisions!(e::Exchange, ts::Vector{StructArray{<:Trader}})
+
+    orders = Vector{LimitOrder}()
+
+    for trader_group in ts
+
+        append!(orders, generate_orders(trader_group, e))
 
     end
     return orders
@@ -168,7 +190,6 @@ function calc_wealth(t::Trader, market_price::Float64)
 
     return t.cash + (net_units * market_price)
 end
-
 
 function make_trader_group(id::Int, count::Int, strategy::NaiveRebalance)
 
@@ -211,7 +232,7 @@ function trader_factory(build_specs::Vector{Tuple{Int, <:AbstractStrategy}})
     return traders
 end
 
-# Currently the trader can only make market orders
+
 function process_order!(e::Exchange, order::MarketOrder)
 
     result_orders = Vector{ResultOrder}()
@@ -291,7 +312,7 @@ function process_order!(e::Exchange, order::MarketOrder)
     return result_orders
 end
 
-# Currently limit orders are reserved for the trader that represents myself
+
 function process_order!(e::Exchange, order::LimitOrder)
     if order.side == Bid
         enqueue!(e.bids, order, order.price)
@@ -328,3 +349,4 @@ function update_positions!(e::Exchange, traders::Vector{StructArray{<:Trader}}, 
         end
     end
 end
+

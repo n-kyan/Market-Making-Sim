@@ -24,4 +24,25 @@ mutable struct LimitOrderBook
     orders::Dict{Int, LimitOrderNode}
     
 end
-    
+
+mutable struct Exchange
+
+    lob::LimitOrderBook
+    market_price::Float64
+
+    Exchange(starting_market_price) = new(
+        LimitOrderBook(),
+        starting_market_price
+    )
+end
+
+
+
+struct Fill
+    t::Int
+    trader_id::Int
+    units::Float64
+    price::Float64
+end
+
+fills = StructArray{Fill}(undef, 0)

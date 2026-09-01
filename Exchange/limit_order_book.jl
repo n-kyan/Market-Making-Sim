@@ -7,7 +7,7 @@ function insert_order!(lob::LimitOrderBook, o::LimitOrder)
     price_book = lob.bids ? o.side == Bid : lob.asks
 
     level = price_book[o.price]
-    
+
     if price_level.head == nothing
         price_level.head = LimitOrderNode(o, nothing, nothing)
         price_level.tail = price_level.head
@@ -82,7 +82,7 @@ function process_order!(lob::LimitOrderBook, o::LimitOrder)
                 remove_order!(maker_order)
             end
         end
-        
+
         if is.empty(price_level)
             delete!(price_book, price_level.price)
         end

@@ -92,9 +92,25 @@ The investory and pnl of all market participants will be tracked over time. It m
 
 ## The Exchange
 
-The exchange will be build to be generic from day 1. Its only job is to be a place for traders to submit orders and to match overlapping orders. In this version since the only market participants are the market maker and one trader, the exchange will take the market makers limit orders, hold them on the book and then when the trader execute a buy order, it will trade with the market maker at its ask price. When the trader submits a sell order, it will trade with the market maker at its bid price. This of course is inherently flawed since the market maker could just set arbitrarily wide quotes and the trader will always transact with then. I acknowledge this flaw, but this version is meant to set up the simulation basics not to be a intellectually defensible version. Regardless, this is not an issue with the exchange itself, but rather tha the single trader is given too simple of a strategy. 
+The exchange will be build to be generic from day 1. Its only job is to be a place for traders to submit orders and to match overlapping orders. In this version since the only market participants are the market maker and one trader, the exchange will take the market makers limit orders, hold them on the book and then when the trader execute a buy order, it will trade with the market maker at its ask price. When the trader submits a sell order, it will trade with the market maker at its bid price. This of course is inherently flawed since the market maker could just set arbitrarily wide quotes and the trader will always transact with then. I acknowledge this flaw, but this version is meant to set up the simulation basics not to be a intellectually defensible version. Regardless, this is not an issue with the exchange itself, but rather that the single trader is given too simple of a strategy. 
 
 The exchange is also responsible for constructing the market price which is simply the price at which the last transaction took place.
+
+### Remaking the Limit Order Book
+
+My first implementation was simply two binary heap priority queues. It was simple, easy to understand and worked enough to allow me to get the full simulation running. Now that the basics are all finished, I want to implement a robust LOB that is future proof so I can feel comfortable building infrastructure on top of it. 
+
+**Whats so bad about the current implementation?:**
+
+- O(N) time for any search since heap is ordered on price, not order id.
+- Only price priority right now (since naive MM cancels quotes each step)
+- There are no price levels just individual orders
+- Partial fills are a pain (pop best order, partial fill, new order) and will happen for most fills
+
+**What is the new implementation?:**
+
+- Ordered map from price to a doubly linked list of all orders at that price (creates price levels)
+- Prices as integer ticks to avoid float bugs and opens the door to array indexing. 
 
 ### Order of Operations
 
@@ -125,6 +141,16 @@ A critical design decision is the order in which orders are processed. If the ma
 I will use Float64 for all decimal numbers.
 
 Julia is column major for looping while c++ and python are row major
+
+
+
+# Version 0.2.0
+
+## The Exchange and the LOB
+
+My first implementation of the exchange was simply a struct with two heap priority queues, one min heap for asks and one max heap for bids. This seemed like a pretty natural implementation to me because it allowed me to match market orders to the best bid or best offer in O(1) time. It quickly became apparent that this design was going to need a rework when I went about implementing order cancelations and marketable limit orders. I implemented order cancelations by searching through the heap for trades with the same trader_id as the trader who wanted to pull their quotes. I felt like there should be a better solution, espectially since this required all order limits to be canceled rather than being able to cancel specific orders. Specific order deletion is not actually necessary for the two trader types I have implemented so far and surely specific order deletion can be implemented with the current design, but i figure that its worth implementing a future proof solution now rather than building on top of a design that is already showing cracks.
+
+Of course the canonical data structure used in exchanges today are price-time priority Limit Order Books. The spirit is the same as my double priority queue but seeks to process additions, cancellations, and executions in constant time. In order to achieve this LOBs are implemented as a combination of a few data structures. First of all, doubly linked lists are used to store orders in price levels. That is to say that for any price that has at least one limit order, there is a doubly linked list to store all limit orders at this exact price in FIFO priority. This works because prices are not continuous and must follow a certain tick size; I will use $0.01.  
 
 
 
